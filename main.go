@@ -11,7 +11,8 @@ import (
 	"pkg/controllers"
 	"pkg/routes"
 	"pkg/utils"
-	"pkg/controllers"
+	"pkg/services"
+	
 )
 
 func main() {
@@ -31,7 +32,7 @@ func main() {
 		log.Printf("defaulting to port %s", port)
 	}
 
-	// Connect to MongoDB using the utility function
+	// Connect to MongoDB using the utility function from db.go
 	client, ctx, err := utils.ConnectDB()
 	if err != nil {
 		log.Fatalf("Failed to connect to MongoDB: %v", err)
@@ -43,16 +44,28 @@ func main() {
 		}
 	}()
 
-	db := client.Database(os.Getenv("DB_NAME"))
+	db := client.Database(os.Getenv("DB_NAME")) // Use the global db variable
+	// We don't use database migrations for this project because we're using MongoDB.
+	// MongoDB is a NoSQL database that doesn't require schema migrations in the same way as relational databases.
+	// Schema changes can be handled dynamically within the application.
 
 	// Dependency Injection
 	userController := controllers.NewUserController(db)
 	heroController := controllers.NewHeroController(db)
 	serviceController := controllers.NewServiceController(db)
+	videoService := services.NewVideoService(db, utils.NewS3Client())
+	videoController := controllers.NewVideoController(videoService)
+	aboutService := services.NewAboutService(db, utils.NewS3Client())
+	aboutController := controllers.NewAboutController(aboutService)
+	blogService := services.NewBlogService(db, utils.NewS3Client())
+	blogController := controllers.NewBlogController(blogService)
 
 	router := gin.Default()
 
 	// Routes Setup
+	routes.VideoRoutes(router, videoController)
+	routes.BlogRoutes(router, blogController)	
+
 	routes.UserRoutes(router, userController) // Use the imported UserRoutes
 	routes.HeroRoutes(router,heroController)
 	routes.ServiceRoutes(router, serviceController)
@@ -67,4 +80,6 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("listen: %s\n", err)
 	}
+	routes.AboutRoutes(router, aboutController)
+
 }
